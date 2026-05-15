@@ -1,0 +1,12 @@
+{
+  "providers": {
+    "ddg": {
+      "consecutiveFailures": 1,
+      "cooldownUntil": null,
+      "lastFailureAt": 1778770768631,
+      "lastSuccessAt": null,
+      "lastError": "fetch failed",
+      "lastCategory": "network"
+    }
+  }
+}

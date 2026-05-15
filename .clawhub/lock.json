@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "skills": {
+    "openclaw-tavily-search": {
+      "version": "0.1.0",
+      "installedAt": 1778640485453
+    },
+    "memory-hygiene": {
+      "version": "1.0.0",
+      "installedAt": 1778640487780
+    },
+    "github": {
+      "version": "1.0.0",
+      "installedAt": 1778640489587
+    },
+    "agent-browser-clawdbot": {
+      "version": "0.1.0",
+      "installedAt": 1778640491863
+    },
+    "tencentcloud-lighthouse-skill": {
+      "version": "1.0.2",
+      "installedAt": 1778640495870
+    },
+    "tencent-docs": {
+      "version": "1.0.31",
+      "installedAt": 1778640502698
+    },
+    "tencent-cos-skill": {
+      "version": "1.1.7",
+      "installedAt": 1778640505371
+    },
+    "tencent-meeting-skill": {
+      "version": "1.0.7",
+      "installedAt": 1778640509173
+    },
+    "web-tools-guide": {
+      "version": "1.0.2",
+      "installedAt": 1778640512072
+    },
+    "system-monitor-pro": {
+      "version": "1.0.0",
+      "installedAt": 1778728002779
+    },
+    "command-center": {
+      "version": "1.4.1",
+      "installedAt": 1778728004288
+    },
+    "system-data-intelligence": {
+      "version": "1.0.3",
+      "installedAt": 1778728005714
+    },
+    "auto-monitor": {
+      "version": "1.0.0",
+      "installedAt": 1778728007651
+    },
+    "web-search-pro": {
+      "version": "2.1.4",
+      "installedAt": 1778728009062
+    },
+    "hexo-blog-with-seo": {
+      "version": "1.0.5",
+      "installedAt": 1778730456560
+    },
+    "auto-updater": {
+      "version": "1.0.0",
+      "installedAt": 1778730469281
+    },
+    "website": {
+      "version": "1.0.0",
+      "installedAt": 1778730469632
+    },
+    "self-improving": {
+      "version": "1.2.16",
+      "installedAt": 1778730469856
+    },
+    "deploy-helper": {
+      "version": "2.0.0",
+      "installedAt": 1778730469879
+    },
+    "multi-search-engine": {
+      "version": "2.1.3",
+      "installedAt": 1778730469912
+    },
+    "liang-tavily-search": {
+      "version": "1.0.1",
+      "installedAt": 1778765105167
+    },
+    "bailian-web-search": {
+      "version": "1.0.4",
+      "installedAt": 1778765109790
+    },
+    "news-feed": {
+      "version": "1.0.0",
+      "installedAt": 1778765128673
+    },
+    "video-downloader-skill": {
+      "version": "1.0.1",
+      "installedAt": 1778765134247
+    },
+    "jpeng-system-health-monitor": {
+      "version": "1.0.0",
+      "installedAt": 1778765159351
+    },
+    "uapi-get-ai-translate-languages": {
+      "version": "1.0.0",
+      "installedAt": 1778765162970
+    },
+    "codebuddy-code": {
+      "version": "1.0.1",
+      "installedAt": 1778765168244
+    },
+    "context7": {
+      "version": "1.0.3",
+      "installedAt": 1778771580670
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "skills": {
+    "system-monitor-pro": {
+      "name": "System Monitor Pro",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=system-monitor-pro",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "command-center": {
+      "name": "Openclaw Command Center",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=command-center",
+      "source": "skillhub",
+      "version": "1.4.1"
+    },
+    "system-data-intelligence": {
+      "name": "System Data Intelligence — File · Analysis · Visualization",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=system-data-intelligence",
+      "source": "skillhub",
+      "version": "1.0.3"
+    },
+    "auto-monitor": {
+      "name": "Auto Monitor - System Monitoring",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=auto-monitor",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "web-search-pro": {
+      "name": "Web Search Pro",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=web-search-pro",
+      "source": "skillhub",
+      "version": "2.1.4"
+    },
+    "hexo-blog-with-seo": {
+      "name": "Hexo Blog with SEO",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=hexo-blog-with-seo",
+      "source": "skillhub",
+      "version": "1.0.5"
+    },
+    "auto-updater": {
+      "name": "Auto-Updater Skill",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=auto-updater",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "website": {
+      "name": "Website",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=website",
+      "source": "skillhub",
+      "version": "1.0.0"
+    },
+    "self-improving": {
+      "name": "Self-Improving + Proactive Agent",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=self-improving",
+      "source": "skillhub",
+      "version": "1.2.16"
+    },
+    "deploy-helper": {
+      "name": "Deploy Helper",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=deploy-helper",
+      "source": "skillhub",
+      "version": "2.0.0"
+    },
+    "multi-search-engine": {
+      "name": "Multi Search Engine",
+      "zip_url": "https://lightmake.site/api/v1/download?slug=multi-search-engine",
+      "source": "skillhub",
+      "version": "2.1.3"
+    }
+  }
+}
