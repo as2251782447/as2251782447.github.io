@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three.js 3D 粒子星空</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+    canvas { display: block; }
+    
+    #ui {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      color: #fff;
+      user-select: none;
+    }
+    #ui h1 {
+      font-size: 1.1rem;
+      font-weight: 300;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+    #ui p {
+      font-size: 0.75rem;
+      opacity: 0.5;
+      letter-spacing: 1px;
+    }
+    
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #controls label {
+      color: rgba(255,255,255,0.6);
+      font-size: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #controls input[type="range"] {
+      width: 120px;
+      accent-color: #667eea;
+    }
+    #controls .btn-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    #controls button {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #controls button:hover, #controls button.active {
+      background: rgba(102,126,234,0.3);
+      border-color: rgba(102,126,234,0.6);
+      color: #fff;
+    }
+    
+    #stats {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.65rem;
+      text-align: right;
+      letter-spacing: 1px;
+    }
+    
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      transition: opacity 0.8s;
+    }
+    #loading.hide { opacity: 0; pointer-events: none; }
+    #loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(102,126,234,0.2);
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div></div>
+  
+  <div id="ui">
+    <h1>✦ STARFIELD ✦</h1>
+    <p>MOUSE DRAG TO NAVIGATE</p>
+  </div>
+  
+  <div id="controls">
+    <label>粒子数量 <input type="range" id="countSlider" min="1000" max="20000" value="8000"></label>
+    <label>星体大小 <input type="range" id="sizeSlider" min="0.5" max="4" value="2" step="0.5"></label>
+    <label>飞行速度 <input type="range" id="speedSlider" min="0.1" max="5" value="1" step="0.1"></label>
+    <div class="btn-group">
+      <button id="btnNebula" class="active">星云</button>
+      <button id="btnGalaxy">星系</button>
+      <button id="btnChaos">混沌</button>
+    </div>
+  </div>
+  
+  <div id="stats">
+    <div id="fps">FPS: --</div>
+    <div id="particles">PARTICLES: --</div>
+  </div>
+  
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  
+  <script type="module">
+    import * as THREE from 'three';
+    
+    // ─── Scene Setup ───
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000005, 0.00015);
+    
+    const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 2000);
+    camera.position.z = 500;
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setClearColor(0x000005);
+    document.body.appendChild(renderer.domElement);
+    
+    // ─── Star Particle System ───
+    let particleCount = 8000;
+    let starSize = 2;
+    let flySpeed = 1;
+    let mode = 'nebula';
+    
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+    const randoms = new Float32Array(particleCount);
+    const velocities = new Float32Array(particleCount);
+    
+    // Color palettes
+    const palettes = {
+      nebula: [
+        [0.5, 0.6, 1.0],   // blue-white
+        [1.0, 0.8, 0.6],   // warm white
+        [0.8, 0.5, 1.0],   // purple
+        [0.6, 0.9, 1.0],   // cyan
+        [1.0, 0.6, 0.8],   // pink
+      ],
+      galaxy: [
+        [1.0, 0.95, 0.8],  // golden
+        [1.0, 0.85, 0.6],  // orange
+        [1.0, 0.7, 0.5],   // red-orange
+        [0.9, 0.9, 1.0],   // cool white
+        [1.0, 0.9, 0.7],   // warm yellow
+      ],
+      chaos: [
+        [1.0, 0.2, 0.2],   // red
+        [0.2, 1.0, 0.2],   // green
+        [0.2, 0.2, 1.0],   // blue
+        [1.0, 1.0, 0.2],   // yellow
+        [1.0, 0.2, 1.0],   // magenta
+        [0.2, 1.0, 1.0],   // cyan
+      ]
+    };
+    
+    function generateStars() {
+      const palette = palettes[mode];
+      
+      for (let i = 0; i < particleCount; i++) {
+        const i3 = i * 3;
+        const spread = mode === 'galaxy' ? 800 : 1000;
+        
+        if (mode === 'galaxy') {
+          // Spiral galaxy distribution
+          const angle = Math.random() * Math.PI * 8;
+          const radius = Math.pow(Math.random(), 0.5) * spread;
+          const spiralAngle = angle + radius * 0.01;
+          positions[i3] = Math.cos(spiralAngle) * radius;
+          positions[i3 + 2] = Math.sin(spiralAngle) * radius;
+          positions[i3 + 1] = (Math.random() - 0.5) * 30 * (1 - radius / spread);
+        } else if (mode === 'nebula') {
+          // Nebula cloud
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const r = Math.pow(Math.random(), 0.3) * spread;
+          positions[i3] = r * Math.sin(phi) * Math.cos(theta);
+          positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.3;
+          positions[i3 + 2] = r * Math.cos(phi);
+        } else {
+          // Chaos - random cloud
+          positions[i3] = (Math.random() - 0.5) * spread * 2;
+          positions[i3 + 1] = (Math.random() - 0.5) * spread * 2;
+          positions[i3 + 2] = (Math.random() - 0.5) * spread * 2;
+        }
+        
+        const col = palette[Math.floor(Math.random() * palette.length)];
+        colors[i3] = col[0];
+        colors[i3 + 1] = col[1];
+        colors[i3 + 2] = col[2];
+        
+        sizes[i] = (0.5 + Math.random() * 1.5) * starSize;
+        randoms[i] = Math.random();
+        velocities[i] = 0.5 + Math.random() * 1.5;
+      }
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+      geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
+    }
+    
+    generateStars();
+    
+    // Shader material for custom point rendering
+    const starMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uPixelRatio: { value: Math.min(devicePixelRatio, 2) }
+      },
+      vertexShader: `
+        attribute float size;
+        attribute float aRandom;
+        attribute vec3 color;
+        varying vec3 vColor;
+        varying float vRandom;
+        uniform float uTime;
+        uniform float uPixelRatio;
+        
+        void main() {
+          vColor = color;
+          vRandom = aRandom;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          
+          // Twinkle effect
+          float twinkle = 0.7 + 0.3 * sin(uTime * (1.0 + aRandom * 2.0) + aRandom * 6.28);
+          
+          gl_PointSize = size * uPixelRatio * (300.0 / -mvPosition.z) * twinkle;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vRandom;
+        uniform float uTime;
+        
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          
+          // Soft glow falloff
+          float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+          float core = 1.0 - smoothstep(0.0, 0.15, dist);
+          
+          // Color shift over time
+          vec3 col = vColor;
+          float shift = sin(uTime * 0.3 + vRandom * 6.28) * 0.15;
+          col = clamp(col + shift, 0.0, 1.0);
+          
+          float alpha = glow * glow * (0.6 + 0.4 * core);
+          if (alpha < 0.01) discard;
+          
+          gl_FragColor = vec4(col, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      vertexColors: true
+    });
+    
+    const stars = new THREE.Points(geometry, starMaterial);
+    scene.add(stars);
+    
+    // ─── Background nebula clouds ───
+    if (mode === 'nebula') {
+      const nebulaGeo = new THREE.BufferGeometry();
+      const nebulaCount = 50;
+      const nebulaPos = new Float32Array(nebulaCount * 3);
+      const nebulaSize = new Float32Array(nebulaCount);
+      const nebulaCol = new Float32Array(nebulaCount * 3);
+      
+      for (let i = 0; i < nebulaCount; i++) {
+        nebulaPos[i * 3] = (Math.random() - 0.5) * 1600;
+        nebulaPos[i * 3 + 1] = (Math.random() - 0.5) * 300;
+        nebulaPos[i * 3 + 2] = (Math.random() - 0.5) * 1600;
+        nebulaSize[i] = 50 + Math.random() * 150;
+        const c = palettes.nebula[Math.floor(Math.random() * palettes.nebula.length)];
+        nebulaCol[i * 3] = c[0] * 0.3;
+        nebulaCol[i * 3 + 1] = c[1] * 0.3;
+        nebulaCol[i * 3 + 2] = c[2] * 0.3;
+      }
+      
+      nebulaGeo.setAttribute('position', new THREE.BufferAttribute(nebulaPos, 3));
+      nebulaGeo.setAttribute('size', new THREE.BufferAttribute(nebulaSize, 1));
+      nebulaGeo.setAttribute('color', new THREE.BufferAttribute(nebulaCol, 3));
+      
+      const nebulaMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+          attribute float size;
+          attribute vec3 color;
+          varying vec3 vColor;
+          varying float vDist;
+          uniform float uTime;
+          
+          void main() {
+            vColor = color;
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            vDist = -mvPos.z;
+            gl_PointSize = size * (500.0 / -mvPos.z);
+            gl_Position = projectionMatrix * mvPos;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          varying float vDist;
+          uniform float uTime;
+          
+          void main() {
+            float d = length(gl_PointCoord - 0.5);
+            float a = 1.0 - smoothstep(0.2, 0.5, d);
+            a *= 0.08;
+            if (a < 0.005) discard;
+            gl_FragColor = vec4(vColor, a);
+          }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      
+      const nebulaClouds = new THREE.Points(nebulaGeo, nebulaMat);
+      scene.add(nebulaClouds);
+    }
+    
+    // ─── Mouse / Touch Controls ───
+    let isDragging = false;
+    let prevMouse = { x: 0, y: 0 };
+    let rotation = { x: 0, y: 0 };
+    let targetRotation = { x: 0, y: 0 };
+    let velocity = { x: 0, y: 0 };
+    
+    document.addEventListener('mousedown', e => {
+      isDragging = true;
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevMouse.x;
+      const dy = e.clientY - prevMouse.y;
+      targetRotation.y += dx * 0.003;
+      targetRotation.x += dy * 0.003;
+      targetRotation.x = Math.max(-1.2, Math.min(1.2, targetRotation.x));
+      velocity = { x: dy * 0.005, y: dx * 0.005 };
+      prevMouse = { x: e.clientX, y: e.clientY };
+    });
+    document.addEventListener('mouseup', () => isDragging = false);
+    document.addEventListener('mouseleave', () => isDragging = false);
+    
+    // Touch support
+    document.addEventListener('touchstart', e => {
+      isDragging = true;
+      prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    });
+    document.addEventListener('touchmove', e => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const dx = e.touches[0].clientX - prevMouse.x;
+      const dy = e.touches[0].clientY - prevMouse.y;
+      targetRotation.y += dx * 0.003;
+      targetRotation.x += dy * 0.003;
+      targetRotation.x = Math.max(-1.2, Math.min(1.2, targetRotation.x));
+      velocity = { x: dy * 0.005, y: dx * 0.005 };
+      prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: false });
+    document.addEventListener('touchend', () => isDragging = false);
+    
+    // ─── Controls UI ───
+    const countSlider = document.getElementById('countSlider');
+    const sizeSlider = document.getElementById('sizeSlider');
+    const speedSlider = document.getElementById('speedSlider');
+    const btnNebula = document.getElementById('btnNebula');
+    const btnGalaxy = document.getElementById('btnGalaxy');
+    const btnChaos = document.getElementById('btnChaos');
+    const fpsEl = document.getElementById('fps');
+    const particlesEl = document.getElementById('particles');
+    const loadingEl = document.getElementById('loading');
+    
+    countSlider.addEventListener('input', () => {
+      particleCount = parseInt(countSlider.value);
+      generateStars();
+      particlesEl.textContent = `PARTICLES: ${particleCount.toLocaleString()}`;
+    });
+    
+    sizeSlider.addEventListener('input', () => {
+      starSize = parseFloat(sizeSlider.value);
+      const sizesAttr = geometry.getAttribute('size');
+      for (let i = 0; i < particleCount; i++) {
+        sizesAttr.array[i] = (0.5 + randoms[i] * 1.5) * starSize;
+      }
+      sizesAttr.needsUpdate = true;
+    });
+    
+    speedSlider.addEventListener('input', () => {
+      flySpeed = parseFloat(speedSlider.value);
+    });
+    
+    function setMode(newMode) {
+      mode = newMode;
+      btnNebula.classList.toggle('active', mode === 'nebula');
+      btnGalaxy.classList.toggle('active', mode === 'galaxy');
+      btnChaos.classList.toggle('active', mode === 'chaos');
+      generateStars();
+    }
+    
+    btnNebula.addEventListener('click', () => setMode('nebula'));
+    btnGalaxy.addEventListener('click', () => setMode('galaxy'));
+    btnChaos.addEventListener('click', () => setMode('chaos'));
+    
+    // ─── Animation Loop ───
+    let lastTime = performance.now();
+    let frames = 0;
+    let lastFpsTime = performance.now();
+    
+    function animate(time) {
+      requestAnimationFrame(animate);
+      
+      const dt = Math.min((time - lastTime) / 16.67, 3);
+      lastTime = time;
+      
+      // FPS counter
+      frames++;
+      if (time - lastFpsTime > 1000) {
+        fpsEl.textContent = `FPS: ${frames}`;
+        frames = 0;
+        lastFpsTime = time;
+      }
+      
+      // Auto forward movement
+      if (!isDragging) {
+        velocity.x *= 0.95;
+        velocity.y *= 0.95;
+        targetRotation.x *= 0.995;
+        targetRotation.y *= 0.995;
+      }
+      
+      rotation.x += (targetRotation.x - rotation.x) * 0.08;
+      rotation.y += (targetRotation.y - rotation.y) * 0.08;
+      
+      // Rotate scene
+      stars.rotation.x += velocity.x * flySpeed * 0.05;
+      stars.rotation.y += velocity.y * flySpeed * 0.05;
+      
+      // Camera slight movement
+      camera.position.x = rotation.y * 100;
+      camera.position.y = -rotation.x * 80;
+      camera.lookAt(scene.position);
+      
+      // Update shader time
+      starMaterial.uniforms.uTime.value = time * 0.001;
+      
+      renderer.render(scene, camera);
+    }
+    
+    particlesEl.textContent = `PARTICLES: ${particleCount.toLocaleString()}`;
+    
+    // Hide loading after init
+    setTimeout(() => loadingEl.classList.add('hide'), 500);
+    
+    // Resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      starMaterial.uniforms.uPixelRatio.value = Math.min(devicePixelRatio, 2);
+    });
+    
+    animate(0);
+  </script>
+</body>
+</html>

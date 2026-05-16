@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>在线 SQL 执行器 - Browser SQLite</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#c9d1d9;
+  --accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;
+  --purple:#a371f7;--pink:#db61a2}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+.header{background:var(--panel);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.header h1{font-size:18px;font-weight:700;color:#fff}
+.header h1 span{color:var(--accent)}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:#238636;border-color:#238636;color:#fff}
+.btn.primary:hover{background:#2ea043;border-color:#2ea043}
+.btn.danger{background:#b62324;border-color:#b62324;color:#fff}
+.btn.danger:hover{background:#da3633}
+.main{flex:1;display:flex;flex-direction:column;padding:16px;gap:16px;max-width:1600px;width:100%;margin:0 auto}
+.top-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.top-row{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.panel-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#1c2128}
+.panel-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#8b949e;display:flex;align-items:center;gap:6px}
+.panel-title .dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.panel-title .dot.yellow{background:var(--yellow)}
+.panel-title .dot.purple{background:var(--purple)}
+.badge-sm{font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(88,166,255,.15);color:var(--accent)}
+.editor-wrap{flex:1;position:relative;min-height:200px}
+textarea{width:100%;flex:1;background:transparent;border:none;outline:none;resize:none;padding:14px;padding-top:10px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;color:var(--text);min-height:200px}
+textarea::placeholder{color:#484f58}
+.toolbar{padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolbar span{font-size:11px;color:#6e7681;margin-left:auto}
+.output-wrap{flex:1;overflow:auto;min-height:150px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#1c2128;padding:8px 12px;text-align:left;font-weight:600;color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #21262d;font-family:'JetBrains Mono',monospace;font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:hover td{background:#1c2128}
+tr:last-child td{border-bottom:none}
+.empty{text-align:center;padding:40px;color:#484f58;font-size:13px}
+.error-msg{color:var(--red);font-family:'JetBrains Mono',monospace;font-size:12px;padding:12px 14px;white-space:pre-wrap;word-break:break-all}
+.success-msg{color:var(--green);font-family:'JetBrains Mono',monospace;font-size:12px;padding:12px 14px}
+.schema-panel{max-height:300px;overflow-y:auto}
+.schema-item{padding:8px 14px;border-bottom:1px solid #21262d;display:flex;align-items:center;gap:10px;font-size:12px}
+.schema-item:last-child{border-bottom:none}
+.schema-item .table-name{font-weight:600;color:var(--accent);font-family:'JetBrains Mono',monospace;min-width:100px}
+.schema-item .cols{color:#8b949e;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.schema-tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500}
+.schema-tag.primary{background:rgba(210,153,34,.2);color:var(--yellow)}
+.schema-tag.text{background:rgba(63,185,80,.15);color:var(--green)}
+.schema-tag.int{background:rgba(88,166,255,.15);color:var(--accent)}
+.schema-tag.real{background:rgba(163,113,247,.15);color:var(--purple)}
+.schema-tag.null{background:rgba(248,81,73,.15);color:var(--red)}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);padding:0 14px;gap:4px}
+.tab{font-size:12px;font-weight:500;padding:8px 12px;color:#8b949e;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.history-item{padding:10px 14px;border-bottom:1px solid #21262d;cursor:pointer;font-size:12px;font-family:'JetBrains Mono',monospace;color:#8b949e;transition:all .15s;display:flex;justify-content:space-between;align-items:center}
+.history-item:hover{background:#1c2128;color:var(--text)}
+.history-item .sql-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;margin-right:12px}
+.history-item .time{font-size:10px;color:#484f58;flex-shrink:0}
+.status{font-size:11px;color:#484f58;padding:0 14px 8px;display:flex;align-items:center;gap:6px}
+.status .dot{width:6px;height:6px;border-radius:50%;background:#3fb950;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.file-input{display:none}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>▶</span> SQL 执行器 <small style="font-weight:400;color:#6e7681;font-size:13px;margin-left:8px">浏览器里的 SQLite · sql.js</small></h1>
+  <div class="header-actions">
+    <input type="file" id="csvInput" class="file-input" accept=".csv">
+    <button class="btn" onclick="document.getElementById('csvInput').click()">📄 导入 CSV</button>
+    <button class="btn" onclick="loadSampleData()">🗂️ 示例数据</button>
+    <button class="btn danger" onclick="clearAll()">🗑️ 清空</button>
+    <button class="btn primary" onclick="executeSQL()">▶ 执行 (Ctrl+Enter)</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="top-row">
+    <div class="panel" style="min-height:320px">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot yellow"></span>SQL 编辑器</div>
+        <div class="badge-sm">sqlite3</div>
+      </div>
+      <div class="editor-wrap">
+        <textarea id="sqlInput" placeholder="SELECT * FROM users;&#10;-- 按 Ctrl+Enter 执行&#10;-- 支持多语句，用 ; 分隔" spellcheck="false"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" onclick="formatSQL()" title="格式化 SQL">🎨 格式化</button>
+        <button class="btn" onclick="insertPrebuilt(1)" title="SELECT">📋 SELECT</button>
+        <button class="btn" onclick="insertPrebuilt(2)" title="INSERT">➕ INSERT</button>
+        <button class="btn" onclick="insertPrebuilt(3)" title="CREATE TABLE">🏗️ CREATE</button>
+        <button class="btn" onclick="insertPrebuilt(4)" title="JOIN">🔗 JOIN</button>
+        <span id="charCount">0 字符</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot"></span>结果 / 输出</div>
+        <span class="badge-sm" id="rowCountBadge">0 行</span>
+      </div>
+      <div class="output-wrap" id="outputArea">
+        <div class="empty">▶ 执行 SQL 后，结果将显示在这里</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab(this, 'schema-content')">📐 表结构</div>
+      <div class="tab" onclick="switchTab(this, 'history-content')">📜 历史记录</div>
+    </div>
+    <div id="schema-content" class="schema-panel">
+      <div class="empty">执行 CREATE TABLE 后自动显示表结构</div>
+    </div>
+    <div id="history-content" style="display:none" class="schema-panel">
+      <div class="empty">执行过的 SQL 会记录在这里</div>
+    </div>
+    <div class="status">
+      <span class="dot"></span>
+      <span id="statusText">SQLite WASM 已加载 · 内存数据库</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js"></script>
+<script>
+let db = null;
+let history = [];
+let schemaInfo = {};
+
+async function initDB() {
+  try {
+    const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}` });
+    db = new SQL.Database();
+    document.getElementById('statusText').textContent = '✅ SQLite WASM 已就绪 · 内存数据库';
+    document.getElementById('sqlInput').focus();
+  } catch(e) {
+    document.getElementById('statusText').textContent = '❌ WASM 加载失败: ' + e.message;
+  }
+}
+
+function executeSQL() {
+  const sql = document.getElementById('sqlInput').value.trim();
+  if (!sql) return;
+  
+  const stmts = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
+  let lastResult = null;
+  let output = '';
+  let hasError = false;
+  
+  for (const stmt of stmts) {
+    try {
+      const results = db.exec(stmt);
+      if (results.length > 0) {
+        lastResult = results[0];
+        output += renderTable(results[0]);
+      } else {
+        const aff = db.getRowsModified();
+        output += `<div class="success-msg">✅ 执行成功，影响 ${aff} 行</div>`;
+        lastResult = null;
+      }
+    } catch(e) {
+      output += `<div class="error-msg">❌ 错误: ${e.message}</div>`;
+      hasError = true;
+      break;
+    }
+  }
+  
+  // Update schema
+  updateSchema();
+  
+  // Update output
+  if (output) {
+    document.getElementById('outputArea').innerHTML = output;
+    const tables = document.querySelectorAll('table');
+    if (tables.length > 0) {
+      const totalRows = Array.from(tables).reduce((sum, t) => sum + (t.rows.length - 1), 0);
+      document.getElementById('rowCountBadge').textContent = totalRows + ' 行';
+    }
+  }
+  
+  // History
+  if (!hasError && sql.length < 500) {
+    addHistory(sql);
+  }
+}
+
+function renderTable(result) {
+  if (!result.values || result.values.length === 0) {
+    return '<div class="success-msg">查询成功，0 行</div>';
+  }
+  let html = '<table><thead><tr>';
+  for (const col of result.columns) {
+    html += `<th>${escapeHtml(col)}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (const row of result.values) {
+    html += '<tr>';
+    for (const cell of row) {
+      const val = (cell === null || cell === undefined) ? '<span style="color:var(--red);opacity:.5">NULL</span>' : escapeHtml(String(cell));
+      html += `<td>${val}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function updateSchema() {
+  try {
+    const tables = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE '__%' ORDER BY name");
+    const schemas = {};
+    for (const t of (tables[0]?.values || [])) {
+      const name = t[0];
+      try {
+        const info = db.exec(`PRAGMA table_info(${name})`);
+        schemas[name] = info[0]?.values || [];
+      } catch(e) {}
+    }
+    schemaInfo = schemas;
+    
+    let html = '';
+    for (const [tname, cols] of Object.entries(schemas)) {
+      html += `<div class="schema-item"><div class="table-name">${escapeHtml(tname)}</div><div class="cols">`;
+      for (const [cid, cname, ctype, notnull, dflt, pk] of cols) {
+        const tagClass = pk ? 'primary' : (ctype.includes('INT') ? 'int' : ctype.includes('REAL') ? 'real' : ctype.includes('TEXT') ? 'text' : 'null');
+        html += `<span class="schema-tag ${tagClass}">${pk ? '🔑 ' : ''}${escapeHtml(cname)} ${escapeHtml(ctype)}</span> `;
+      }
+      html += '</div></div>';
+    }
+    document.getElementById('schema-content').innerHTML = html || '<div class="empty">暂无表</div>';
+  } catch(e) {}
+}
+
+function addHistory(sql) {
+  const existing = history.findIndex(h => h.sql === sql);
+  if (existing !== -1) history.splice(existing, 1);
+  history.unshift({ sql, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) });
+  if (history.length > 50) history = history.slice(0, 50);
+  renderHistory();
+}
+
+function renderHistory() {
+  if (history.length === 0) {
+    document.getElementById('history-content').innerHTML = '<div class="empty">执行过的 SQL 会记录在这里</div>';
+    return;
+  }
+  let html = '';
+  for (const h of history) {
+    html += `<div class="history-item" onclick="loadHistory(this)" data-sql="${escapeHtml(h.sql).replace(/"/g, '&quot;')}"><span class="sql-text">${escapeHtml(h.sql)}</span><span class="time">${h.time}</span></div>`;
+  }
+  document.getElementById('history-content').innerHTML = html;
+}
+
+function loadHistory(el) {
+  document.getElementById('sqlInput').value = el.dataset.sql;
+  updateCharCount();
+}
+
+function loadSampleData() {
+  const sample = `
+CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT, age INTEGER, city TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT, body TEXT, likes INTEGER DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id));
+CREATE TABLE comments (id INTEGER PRIMARY KEY, post_id INTEGER, user_id INTEGER, text TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(post_id) REFERENCES posts(id), FOREIGN KEY(user_id) REFERENCES users(id));
+
+INSERT INTO users (name, email, age, city) VALUES ('张三', 'zhangsan@example.com', 28, '北京');
+INSERT INTO users (name, email, age, city) VALUES ('李四', 'lisi@example.com', 34, '上海');
+INSERT INTO users (name, email, age, city) VALUES ('王五', 'wangwu@example.com', 22, '深圳');
+INSERT INTO users (name, email, age, city) VALUES ('赵六', 'zhaoliu@example.com', 31, '杭州');
+INSERT INTO users (name, email, age, city) VALUES ('孙七', 'sunqi@example.com', 26, '成都');
+INSERT INTO users (name, email, age, city) VALUES ('周八', 'zhouba@example.com', 29, '广州');
+INSERT INTO users (name, email, age, city) VALUES ('吴九', 'wujiu@example.com', 35, '南京');
+
+INSERT INTO posts (user_id, title, body, likes) VALUES (1, 'Next.js 入门指南', 'Next.js 是一个全栈框架...', 142);
+INSERT INTO posts (user_id, title, body, likes) VALUES (1, 'React Server Components 解析', 'RSC 是 React 18 的重磅特性...', 89);
+INSERT INTO posts (user_id, title, body, likes) VALUES (2, 'TypeScript 5.0 新特性', '5.0 带来了很多激动人心的改动...', 234);
+INSERT INTO posts (user_id, title, body, likes) VALUES (3, 'Tailwind CSS 最佳实践', ' utility-first CSS 框架使用心得...', 178);
+INSERT INTO posts (user_id, title, body, likes) VALUES (2, 'Docker 从入门到精通', ' 容器化部署实战经验总结...', 312);
+INSERT INTO posts (user_id, title, body, likes) VALUES (4, 'Rust 所有权机制', ' 理解 Rust 的内存管理...', 156);
+INSERT INTO posts (user_id, title, body, likes) VALUES (5, 'WebAssembly 现状', ' WASM 在前端的潜力...', 98);
+INSERT INTO posts (user_id, title, body, likes) VALUES (6, 'Three.js 3D 入门', ' 用 Three.js 构建3D场景...', 201);
+
+INSERT INTO comments (post_id, user_id, text) VALUES (1, 2, '写得很好，感谢分享！');
+INSERT INTO comments (post_id, user_id, text) VALUES (1, 3, '终于有人写 Next.js 的教程了');
+INSERT INTO comments (post_id, user_id, text) VALUES (2, 1, 'RSC 确实改变了开发方式');
+INSERT INTO comments (post_id, user_id, text) VALUES (3, 4, 'TypeScript 真香');
+INSERT INTO comments (post_id, user_id, text) VALUES (4, 5, 'Tailwind 是我的最爱');
+INSERT INTO comments (post_id, user_id, text) VALUES (5, 6, 'Docker 确实好用');
+`.trim();
+  document.getElementById('sqlInput').value = sample;
+  updateCharCount();
+  executeSQL();
+}
+
+function clearAll() {
+  if (!confirm('确定清空数据库？这将删除所有表和数据。')) return;
+  db = new SQL.Database();
+  updateSchema();
+  document.getElementById('outputArea').innerHTML = '<div class="empty">▶ 执行 SQL 后，结果将显示在这里</div>';
+  document.getElementById('rowCountBadge').textContent = '0 行';
+  history = [];
+  renderHistory();
+}
+
+function insertPrebuilt(type) {
+  const sqlInput = document.getElementById('sqlInput');
+  const templates = {
+    1: 'SELECT u.name, u.city, COUNT(p.id) as post_count\nFROM users u\nLEFT JOIN posts p ON u.id = p.user_id\nGROUP BY u.id\nORDER BY post_count DESC;',
+    2: "INSERT INTO users (name, email, age, city) VALUES ('新用户', 'new@example.com', 25, '城市');",
+    3: 'CREATE TABLE products (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  price REAL,\n  stock INTEGER DEFAULT 0\n);',
+    4: 'SELECT p.title, u.name as author, c.text as comment, c.created_at\nFROM posts p\nJOIN users u ON p.user_id = u.id\nLEFT JOIN comments c ON p.id = c.post_id\nORDER BY p.id, c.id;'
+  };
+  sqlInput.value = templates[type] || '';
+  updateCharCount();
+  sqlInput.focus();
+}
+
+function formatSQL() {
+  const sql = document.getElementById('sqlInput').value;
+  if (!sql) return;
+  let formatted = sql
+    .replace(/\bSELECT\b/gi, '\nSELECT')
+    .replace(/\bFROM\b/gi, '\n  FROM')
+    .replace(/\bWHERE\b/gi, '\n  WHERE')
+    .replace(/\bAND\b/gi, '\n  AND')
+    .replace(/\bOR\b/gi, '\n  OR')
+    .replace(/\bJOIN\b/gi, '\n  JOIN')
+    .replace(/\bLEFT JOIN\b/gi, '\n  LEFT JOIN')
+    .replace(/\bRIGHT JOIN\b/gi, '\n  RIGHT JOIN')
+    .replace(/\bINNER JOIN\b/gi, '\n  INNER JOIN')
+    .replace(/\bON\b/gi, '\n    ON')
+    .replace(/\bGROUP BY\b/gi, '\n  GROUP BY')
+    .replace(/\bORDER BY\b/gi, '\n  ORDER BY')
+    .replace(/\bLIMIT\b/gi, '\n  LIMIT')
+    .replace(/\bINSERT INTO\b/gi, '\nINSERT INTO')
+    .replace(/\bVALUES\b/gi, '\n  VALUES')
+    .replace(/\bCREATE TABLE\b/gi, '\nCREATE TABLE')
+    .replace(/\bPRIMARY KEY\b/gi, '\n  PRIMARY KEY')
+    .replace(/\bFOREIGN KEY\b/gi, '\n  FOREIGN KEY')
+    .replace(/,\s*/g, ',\n  ')
+    .trim();
+  document.getElementById('sqlInput').value = formatted;
+  updateCharCount();
+}
+
+function switchTab(el, contentId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('schema-content').style.display = contentId === 'schema-content' ? '' : 'none';
+  document.getElementById('history-content').style.display = contentId === 'history-content' ? '' : 'none';
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateCharCount() {
+  const len = document.getElementById('sqlInput').value.length;
+  document.getElementById('charCount').textContent = len + ' 字符';
+}
+
+document.getElementById('sqlInput').addEventListener('input', updateCharCount);
+document.getElementById('sqlInput').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); executeSQL(); }
+});
+document.getElementById('csvInput').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length < 2) return alert('CSV 至少需要表头行和一行数据');
+  
+  const headers = lines[0].split(',').map(h => h.trim().replace(/['"]/g, ''));
+  const tableName = file.name.replace('.csv', '').replace(/[^a-zA-Z0-9_]/g, '_');
+  
+  let createSQL = `CREATE TABLE "${tableName}" (\n  "${headers[0]}" TEXT`;
+  for (let i = 1; i < headers.length; i++) createSQL += `,\n  "${headers[i]}" TEXT`;
+  createSQL += '\n);';
+  
+  const insertSQL = lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => `'${v.trim().replace(/['"]/g, '')}'`);
+    return `INSERT INTO "${tableName}" VALUES (${vals.join(', ')});`;
+  }).join('\n');
+  
+  document.getElementById('sqlInput').value = createSQL + '\n\n' + insertSQL;
+  updateCharCount();
+  executeSQL();
+});
+
+initDB();
+</script>
+</body>
+</html>
