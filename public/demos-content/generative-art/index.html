@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>生成式艺术画板 - Generative Art</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    .header {
+      padding: 20px 30px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 300;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .controls select, .controls button {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #e0e0e0;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    
+    .controls select:hover, .controls button:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.3);
+    }
+    
+    .controls button.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: transparent;
+    }
+    
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      min-height: calc(100vh - 160px);
+    }
+    
+    canvas {
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      max-width: 100%;
+      background: #000;
+    }
+    
+    .info-panel {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(10px);
+      padding: 15px 20px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      color: #888;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .info-panel .stat {
+      margin: 4px 0;
+    }
+    
+    .info-panel .value {
+      color: #667eea;
+      font-weight: 600;
+    }
+    
+    .title-overlay {
+      position: fixed;
+      top: 80px;
+      left: 30px;
+      font-size: 0.8rem;
+      opacity: 0.5;
+    }
+    
+    .title-overlay .name {
+      font-size: 1.1rem;
+      color: #667eea;
+      margin-bottom: 4px;
+    }
+    
+    @media (max-width: 768px) {
+      .header { padding: 15px 20px; }
+      .header h1 { font-size: 1.1rem; }
+      .controls { gap: 8px; }
+      .controls select, .controls button { padding: 6px 12px; font-size: 0.8rem; }
+      .canvas-container { padding: 10px; }
+      .info-panel { bottom: 10px; left: 10px; padding: 10px 15px; }
+      .title-overlay { top: 70px; left: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>✦ Generative Art Board</h1>
+    <div class="controls">
+      <select id="fractalType">
+        <option value="sierpinski">谢尔宾斯基三角形</option>
+        <option value="barnsley">巴恩斯基蕨</option>
+        <option value="lorenz">洛伦兹吸引子</option>
+        <option value="mandelbrot">曼德博集合</option>
+        <option value="julia">茱莉亚集合</option>
+        <option value="spiral">斐波那契螺旋</option>
+      </select>
+      <button id="animateBtn" onclick="toggleAnimate()">▶ 动画</button>
+      <button onclick="regenerate()">↻ 重绘</button>
+      <button onclick="saveImage()">💾 保存</button>
+    </div>
+  </div>
+  
+  <div class="title-overlay">
+    <div class="name" id="fractalName">谢尔宾斯基三角形</div>
+    <div>Sierpinski Triangle</div>
+  </div>
+  
+  <div class="canvas-container">
+    <canvas id="canvas"></canvas>
+  </div>
+  
+  <div class="info-panel">
+    <div class="stat">迭代: <span class="value" id="iterCount">0</span></div>
+    <div class="stat">帧: <span class="value" id="fps">0</span></div>
+    <div class="stat">鼠标 X: <span class="value" id="mouseX">-</span></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let currentType = 'sierpinski';
+    let isAnimating = false;
+    let animationId = null;
+    let mouseX = 0;
+    let mouseY = 0;
+    let frameCount = 0;
+    let lastTime = performance.now();
+    
+    const names = {
+      sierpinski: ['谢尔宾斯基三角形', 'Sierpinski Triangle'],
+      barnsley: ['巴恩斯基蕨', 'Barnsley Fern'],
+      lorenz: ['洛伦兹吸引子', 'Lorenz Attractor'],
+      mandelbrot: ['曼德博集合', 'Mandelbrot Set'],
+      julia: ['茱莉亚集合', 'Julia Set'],
+      spiral: ['斐波那契螺旋', 'Fibonacci Spiral']
+    };
+    
+    function resize() {
+      const container = document.querySelector('.canvas-container');
+      const size = Math.min(container.clientWidth - 40, container.clientHeight - 40, 800);
+      canvas.width = size;
+      canvas.height = size;
+      draw();
+    }
+    
+    function draw() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      switch(currentType) {
+        case 'sierpinski': drawSierpinski(); break;
+        case 'barnsley': drawBarnsley(); break;
+        case 'lorenz': drawLorenz(); break;
+        case 'mandelbrot': drawMandelbrot(); break;
+        case 'julia': drawJulia(); break;
+        case 'spiral': drawSpiral(); break;
+      }
+      
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        document.getElementById('fps').textContent = frameCount;
+        frameCount = 0;
+        lastTime = now;
+      }
+    }
+    
+    function drawSierpinski() {
+      const size = canvas.width;
+      const depth = 7;
+      const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe'];
+      
+      function triangle(x, y, s, d) {
+        if (d === 0) {
+          ctx.fillStyle = colors[d % colors.length];
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + s, y);
+          ctx.lineTo(x + s/2, y - s * Math.sqrt(3)/2);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          triangle(x, y, s/2, d-1);
+          triangle(x + s/2, y, s/2, d-1);
+          triangle(x + s/4, y - s * Math.sqrt(3)/4, s/2, d-1);
+        }
+      }
+      
+      ctx.save();
+      ctx.translate(size/2, size * 0.85);
+      triangle(-size/2, 0, size, depth);
+      ctx.restore();
+      
+      document.getElementById('iterCount').textContent = Math.pow(3, depth);
+    }
+    
+    function drawBarnsley() {
+      const points = 50000;
+      const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe'];
+      let x = 0, y = 0;
+      
+      for (let i = 0; i < points; i++) {
+        const r = Math.random();
+        let nx, ny;
+        
+        if (r < 0.01) {
+          nx = 0;
+          ny = 0.16 * y;
+        } else if (r < 0.86) {
+          nx = 0.85 * x + 0.04 * y;
+          ny = -0.04 * x + 0.85 * y + 1.6;
+        } else if (r < 0.93) {
+          nx = 0.2 * x - 0.26 * y;
+          ny = 0.23 * x + 0.22 * y + 1.6;
+        } else {
+          nx = -0.15 * x + 0.28 * y;
+          ny = 0.26 * x + 0.24 * y + 0.44;
+        }
+        
+        x = nx;
+        y = ny;
+        
+        const px = (x * canvas.width / 10) + canvas.width / 2;
+        const py = canvas.height - (y * canvas.height / 14);
+        
+        ctx.fillStyle = colors[Math.floor(r * colors.length)];
+        ctx.fillRect(px, py, 1, 1);
+      }
+      
+      document.getElementById('iterCount').textContent = points;
+    }
+    
+    let lorenzT = 0;
+    function drawLorenz() {
+      const scale = canvas.height / 50;
+      const offsetX = canvas.width / 2;
+      const offsetY = canvas.height / 2;
+      
+      let x = 0.1, y = 0, z = 0;
+      const dt = 0.01;
+      const steps = 3000;
+      
+      for (let i = 0; i < steps; i++) {
+        const dx = 10 * (y - x) * dt;
+        const dy = (x * (28 - z) - y) * dt;
+        const dz = (x * y - 8/3 * z) * dt;
+        
+        x += dx;
+        y += dy;
+        z += dz;
+        
+        const hue = (i / steps) * 360;
+        ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.6)`;
+        ctx.fillRect(x * scale + offsetX, z * scale / 2 + offsetY, 2, 2);
+      }
+      
+      document.getElementById('iterCount').textContent = steps;
+      return x;
+    }
+    
+    function drawMandelbrot() {
+      const maxIter = 100;
+      const imageData = ctx.createImageData(canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      for (let px = 0; px < canvas.width; px++) {
+        for (let py = 0; py < canvas.height; py++) {
+          const x0 = (px - canvas.width * 0.7) / (canvas.width / 4);
+          const y0 = (py - canvas.height / 2) / (canvas.height / 4);
+          
+          let x = 0, y = 0, iter = 0;
+          
+          while (x*x + y*y <= 4 && iter < maxIter) {
+            const xt = x*x - y*y + x0;
+            y = 2*x*y + y0;
+            x = xt;
+            iter++;
+          }
+          
+          const idx = (py * canvas.width + px) * 4;
+          if (iter < maxIter) {
+            const hue = iter / maxIter * 360;
+            data[idx] = hue2rgb(hue);
+            data[idx+1] = hue2rgb(hue + 120);
+            data[idx+2] = hue2rgb(hue + 240);
+            data[idx+3] = 255;
+          }
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+      document.getElementById('iterCount').textContent = canvas.width * canvas.height;
+    }
+    
+    function hue2rgb(h) {
+      h = h % 360;
+      const c = 1;
+      const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      const m = 0;
+      
+      if (h < 60) return [c*255, x*255, 0];
+      if (h < 120) return [x*255, c*255, 0];
+      if (h < 180) return [0, c*255, x*255];
+      if (h < 240) return [0, x*255, c*255];
+      if (h < 300) return [x*255, 0, c*255];
+      return [c*255, 0, x*255];
+    }
+    
+    function drawJulia() {
+      const maxIter = 80;
+      const c = { x: -0.7 + Math.sin(mouseX / 200) * 0.3, y: 0.27 + Math.cos(mouseY / 200) * 0.3 };
+      const imageData = ctx.createImageData(canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      for (let px = 0; px < canvas.width; px++) {
+        for (let py = 0; py < canvas.height; py++) {
+          let x = (px - canvas.width / 2) / (canvas.width / 3);
+          let y = (py - canvas.height / 2) / (canvas.height / 3);
+          let iter = 0;
+          
+          while (x*x + y*y < 4 && iter < maxIter) {
+            const xt = x*x - y*y + c.x;
+            y = 2*x*y + c.y;
+            x = xt;
+            iter++;
+          }
+          
+          const idx = (py * canvas.width + px) * 4;
+          if (iter < maxIter) {
+            const hue = (iter / maxIter) * 360;
+            const rgb = hue2rgb(hue);
+            data[idx] = rgb[0];
+            data[idx+1] = rgb[1];
+            data[idx+2] = rgb[2];
+            data[idx+3] = 255;
+          }
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0);
+      document.getElementById('iterCount').textContent = canvas.width * canvas.height;
+    }
+    
+    function drawSpiral() {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const phi = (1 + Math.sqrt(5)) / 2;
+      
+      for (let i = 1; i < 1500; i++) {
+        const angle = i * phi * 2 * Math.PI;
+        const radius = Math.sqrt(i) * 15;
+        
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+        
+        const size = Math.max(2, 12 - Math.sqrt(i) * 0.5);
+        const hue = (i / 1500) * 360;
+        
+        ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      document.getElementById('iterCount').textContent = 1500;
+    }
+    
+    function animate() {
+      if (!isAnimating) return;
+      
+      if (currentType === 'lorenz') {
+        lorenzT += 0.01;
+        ctx.fillStyle = 'rgba(0,0,0,0.03)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const scale = canvas.height / 50;
+        const offsetX = canvas.width / 2;
+        const offsetY = canvas.height / 2;
+        
+        let x = Math.sin(lorenzT) * 0.1, y = 0, z = Math.cos(lorenzT) * 0.1;
+        const dt = 0.01;
+        
+        for (let i = 0; i < 10; i++) {
+          const dx = 10 * (y - x) * dt;
+          const dy = (x * (28 - z) - y) * dt;
+          const dz = (x * y - 8/3 * z) * dt;
+          x += dx; y += dy; z += dz;
+          
+          const hue = (i / 10) * 360;
+          ctx.fillStyle = `hsla(${hue}, 80%, 60%, 0.6)`;
+          ctx.fillRect(x * scale + offsetX, z * scale / 2 + offsetY, 2, 2);
+        }
+      }
+      
+      if (currentType === 'julia') {
+        draw();
+      }
+      
+      animationId = requestAnimationFrame(animate);
+    }
+    
+    function toggleAnimate() {
+      isAnimating = !isAnimating;
+      const btn = document.getElementById('animateBtn');
+      btn.textContent = isAnimating ? '⏸ 暂停' : '▶ 动画';
+      btn.classList.toggle('active', isAnimating);
+      
+      if (isAnimating) animate();
+      else cancelAnimationFrame(animationId);
+    }
+    
+    function regenerate() {
+      if (currentType === 'julia') draw();
+      else draw();
+    }
+    
+    function saveImage() {
+      const link = document.createElement('a');
+      link.download = `generative-${currentType}-${Date.now()}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+    
+    document.getElementById('fractalType').addEventListener('change', (e) => {
+      currentType = e.target.value;
+      const nameData = names[currentType];
+      document.getElementById('fractalName').textContent = nameData[0];
+      document.querySelector('.title-overlay div:last-child').textContent = nameData[1];
+      draw();
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      document.getElementById('mouseX').textContent = Math.round(mouseX);
+      
+      if (currentType === 'julia') {
+        clearTimeout(juliaTimeout);
+        juliaTimeout = setTimeout(() => draw(), 50);
+      }
+    });
+    
+    let juliaTimeout;
+    
+    window.addEventListener('resize', resize);
+    
+    resize();
+  </script>
+</body>
+</html>
