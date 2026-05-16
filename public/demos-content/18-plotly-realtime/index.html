@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plotly 实时图表 - 传感器数据可视化</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: #1a2235;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --accent-1: #3b82f6;
+      --accent-2: #10b981;
+      --accent-3: #f59e0b;
+      --accent-4: #ef4444;
+      --border: #1e293b;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    
+    .title-group h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .title-group p {
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-size: 0.95rem;
+    }
+    
+    .stats-bar {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 24px;
+      min-width: 140px;
+    }
+    
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    
+    .stat-value.blue { color: var(--accent-1); }
+    .stat-value.green { color: var(--accent-2); }
+    .stat-value.orange { color: var(--accent-3); }
+    .stat-value.red { color: var(--accent-4); }
+    
+    .chart-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    
+    .chart-title {
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+    
+    .chart-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .chart-controls button {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .chart-controls button:hover {
+      background: var(--accent-1);
+      color: white;
+      border-color: var(--accent-1);
+    }
+    
+    .chart-controls button.active {
+      background: var(--accent-1);
+      color: white;
+      border-color: var(--accent-1);
+    }
+    
+    #main-chart {
+      width: 100%;
+      height: 400px;
+    }
+    
+    .controls-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .control-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    
+    .control-panel h3 {
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+    }
+    
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    
+    .control-row label {
+      font-size: 0.9rem;
+    }
+    
+    .control-row input[type="range"] {
+      width: 120px;
+      accent-color: var(--accent-1);
+    }
+    
+    .toggle-group {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .toggle-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .toggle-btn.active {
+      background: var(--accent-1);
+      color: white;
+      border-color: var(--accent-1);
+    }
+    
+    .mini-charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    
+    .mini-chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    
+    .mini-chart-card h4 {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .mini-chart-card h4 span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    
+    .mini-chart-card h4 span.temp { background: var(--accent-1); }
+    .mini-chart-card h4 span.humidity { background: var(--accent-2); }
+    .mini-chart-card h4 span.pressure { background: var(--accent-3); }
+    
+    .mini-chart-card .current-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .mini-chart-card .current-value.blue { color: var(--accent-1); }
+    .mini-chart-card .current-value.green { color: var(--accent-2); }
+    .mini-chart-card .current-value.orange { color: var(--accent-3); }
+    
+    .mini-chart-card .unit {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-left: 4px;
+    }
+    
+    .mini-chart-card .delta {
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    
+    .delta.up {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-2);
+    }
+    
+    .delta.down {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-4);
+    }
+    
+    .mini-chart-container {
+      height: 100px;
+    }
+    
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--accent-2);
+    }
+    
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-2);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+    
+    .legend-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    
+    .legend-color {
+      width: 12px;
+      height: 3px;
+      border-radius: 2px;
+    }
+    
+    @media (max-width: 768px) {
+      body { padding: 12px; }
+      header { flex-direction: column; }
+      .stats-bar { width: 100%; }
+      .stat-card { flex: 1; min-width: 100px; }
+      #main-chart { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1>📊 Plotly 实时图表</h1>
+        <p>多源传感器数据实时可视化 · 支持缩放/拖拽/筛选</p>
+      </div>
+      <div class="live-indicator">
+        <div class="live-dot"></div>
+        <span>实时更新中</span>
+      </div>
+    </header>
+    
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">数据点</div>
+        <div class="stat-value blue" id="data-points">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">更新频率</div>
+        <div class="stat-value green">1s</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">运行时长</div>
+        <div class="stat-value orange" id="uptime">00:00</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">信号强度</div>
+        <div class="stat-value red">98%</div>
+      </div>
+    </div>
+    
+    <div class="chart-container" style="margin-top: 24px;">
+      <div class="chart-header">
+        <div class="chart-title">多通道传感器实时数据</div>
+        <div class="chart-controls">
+          <button class="active" onclick="setTimeRange(60)">1分钟</button>
+          <button onclick="setTimeRange(300)">5分钟</button>
+          <button onclick="setTimeRange(600)">10分钟</button>
+          <button onclick="resetZoom()">重置缩放</button>
+        </div>
+      </div>
+      <div id="main-chart"></div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div>温度 (°C)</div>
+        <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>湿度 (%)</div>
+        <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>气压 (hPa)</div>
+      </div>
+    </div>
+    
+    <div class="controls-row">
+      <div class="control-panel">
+        <h3>📈 数据配置</h3>
+        <div class="control-row">
+          <label>更新频率</label>
+          <input type="range" id="update-interval" min="500" max="5000" value="1000" oninput="updateInterval = parseInt(this.value)">
+          <span id="interval-label" style="width:50px;text-align:right;font-family:JetBrains Mono;font-size:0.85rem;">1.0s</span>
+        </div>
+        <div class="control-row">
+          <label>噪声等级</label>
+          <input type="range" id="noise-level" min="0" max="50" value="10" oninput="noiseLevel = parseInt(this.value) / 100">
+        </div>
+        <div class="control-row">
+          <label>显示通道</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-temp" onclick="toggleSeries('temp')">温度</button>
+            <button class="toggle-btn active" id="btn-humidity" onclick="toggleSeries('humidity')">湿度</button>
+            <button class="toggle-btn active" id="btn-pressure" onclick="toggleSeries('pressure')">气压</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="control-panel">
+        <h3>🎨 图表样式</h3>
+        <div class="control-row">
+          <label>平滑曲线</label>
+          <button class="toggle-btn active" id="btn-smooth" onclick="toggleSmooth()">开启</button>
+        </div>
+        <div class="control-row">
+          <label>显示网格</label>
+          <button class="toggle-btn active" id="btn-grid" onclick="toggleGrid()">开启</button>
+        </div>
+        <div class="control-row">
+          <label>填充区域</label>
+          <button class="toggle-btn" id="btn-fill" onclick="toggleFill()">关闭</button>
+        </div>
+      </div>
+      
+      <div class="control-panel">
+        <h3>⚙️ 模拟参数</h3>
+        <div class="control-row">
+          <label>温度基数</label>
+          <input type="range" id="temp-base" min="15" max="35" value="25" oninput="tempBase = parseInt(this.value)">
+          <span id="temp-base-label" style="width:40px;text-align:right;font-family:JetBrains Mono;font-size:0.85rem;">25°C</span>
+        </div>
+        <div class="control-row">
+          <label>湿度基数</label>
+          <input type="range" id="humidity-base" min="30" max="80" value="55" oninput="humidityBase = parseInt(this.value)">
+          <span id="humidity-base-label" style="width:40px;text-align:right;font-family:JetBrains Mono;font-size:0.85rem;">55%</span>
+        </div>
+        <div class="control-row">
+          <label>气压基数</label>
+          <input type="range" id="pressure-base" min="950" max="1050" value="1013" oninput="pressureBase = parseInt(this.value)">
+          <span id="pressure-base-label" style="width:50px;text-align:right;font-family:JetBrains Mono;font-size:0.85rem;">1013hPa</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mini-charts">
+      <div class="mini-chart-card">
+        <h4><span class="temp"></span>温度</h4>
+        <div class="current-value blue" id="temp-value">--<span class="unit">°C</span></div>
+        <span class="delta up" id="temp-delta">+0.2°C</span>
+        <div class="mini-chart-container" id="temp-chart"></div>
+      </div>
+      <div class="mini-chart-card">
+        <h4><span class="humidity"></span>湿度</h4>
+        <div class="current-value green" id="humidity-value">--<span class="unit">%</span></div>
+        <span class="delta down" id="humidity-delta">-0.5%</span>
+        <div class="mini-chart-container" id="humidity-chart"></div>
+      </div>
+      <div class="mini-chart-card">
+        <h4><span class="pressure"></span>气压</h4>
+        <div class="current-value orange" id="pressure-value">--<span class="unit">hPa</span></div>
+        <span class="delta up" id="pressure-delta">+1.2hPa</span>
+        <div class="mini-chart-container" id="pressure-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    let updateInterval = 1000;
+    let noiseLevel = 0.1;
+    let tempBase = 25;
+    let humidityBase = 55;
+    let pressureBase = 1013;
+    let maxPoints = 60;
+    let smoothMode = true;
+    let showGrid = true;
+    let showFill = false;
+    let visibleSeries = { temp: true, humidity: true, pressure: true };
+    
+    // Data storage
+    let timestamps = [];
+    let tempData = [];
+    let humidityData = [];
+    let pressureData = [];
+    let startTime = Date.now();
+    
+    // Initialize
+    function init() {
+      Plotly.newPlot('main-chart', [{
+        name: '温度',
+        y: [],
+        x: [],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#3b82f6', width: 2 },
+        fill: showFill ? 'tozeroy' : 'none',
+        fillcolor: 'rgba(59, 130, 246, 0.1)'
+      }, {
+        name: '湿度',
+        y: [],
+        x: [],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#10b981', width: 2 },
+        fill: showFill ? 'tozeroy' : 'none',
+        fillcolor: 'rgba(16, 185, 129, 0.1)'
+      }, {
+        name: '气压',
+        y: [],
+        x: [],
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#f59e0b', width: 2 },
+        fill: showFill ? 'tozeroy' : 'none',
+        fillcolor: 'rgba(245, 158, 11, 0.1)'
+      }], {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: '#94a3b8', family: 'Inter' },
+        margin: { t: 20, r: 20, b: 40, l: 50 },
+        showlegend: false,
+        xaxis: {
+          gridcolor: showGrid ? '#1e293b' : 'transparent',
+          linecolor: '#1e293b',
+          title: { text: '时间', font: { color: '#94a3b8', size: 12 } },
+          tickformat: '%H:%M:%S'
+        },
+        yaxis: {
+          gridcolor: showGrid ? '#1e293b' : 'transparent',
+          linecolor: '#1e293b',
+          rangemode: 'tozero'
+        },
+        hovermode: 'x unified'
+      }, { responsive: true });
+      
+      // Mini charts
+      ['temp-chart', 'humidity-chart', 'pressure-chart'].forEach((id, i) => {
+        const colors = ['#3b82f6', '#10b981', '#f59e0b'];
+        Plotly.newPlot(id, [{
+          y: [],
+          x: [],
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: colors[i], width: 1.5 },
+          fill: 'tozeroy',
+          fillcolor: colors[i] + '20'
+        }], {
+          paper_bgcolor: 'transparent',
+          plot_bgcolor: 'transparent',
+          font: { color: '#94a3b8', family: 'Inter', size: 10 },
+          margin: { t: 10, r: 10, b: 25, l: 35 },
+          showlegend: false,
+          xaxis: { showgrid: false, showticklabels: false },
+          yaxis: { gridcolor: '#1e293b', zeroline: false }
+        }, { responsive: true });
+      });
+      
+      update();
+      setInterval(update, updateInterval);
+      setInterval(updateUptime, 1000);
+    }
+    
+    function update() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('zh-CN', { hour12: false });
+      
+      // Generate data with noise
+      const temp = tempBase + (Math.random() - 0.5) * noiseLevel * 10 + Math.sin(Date.now() / 5000) * 3;
+      const humidity = humidityBase + (Math.random() - 0.5) * noiseLevel * 20 + Math.sin(Date.now() / 7000) * 5;
+      const pressure = pressureBase + (Math.random() - 0.5) * noiseLevel * 5 + Math.sin(Date.now() / 10000) * 2;
+      
+      timestamps.push(timeStr);
+      tempData.push(parseFloat(temp.toFixed(2)));
+      humidityData.push(parseFloat(humidity.toFixed(2)));
+      pressureData.push(parseFloat(pressure.toFixed(2)));
+      
+      // Limit data points
+      if (timestamps.length > maxPoints) {
+        timestamps.shift();
+        tempData.shift();
+        humidityData.shift();
+        pressureData.shift();
+      }
+      
+      // Update main chart
+      Plotly.update('main-chart', {
+        x: [timestamps, timestamps, timestamps],
+        y: [visibleSeries.temp ? tempData : [], visibleSeries.humidity ? humidityData : [], visibleSeries.pressure ? pressureData : []],
+        'line.width': [2, 2, 2]
+      });
+      
+      // Update mini charts
+      if (visibleSeries.temp) {
+        Plotly.update('temp-chart', { x: [timestamps], y: [tempData] });
+        document.getElementById('temp-value').innerHTML = tempData[tempData.length-1].toFixed(1) + '<span class="unit">°C</span>';
+      }
+      if (visibleSeries.humidity) {
+        Plotly.update('humidity-chart', { x: [timestamps], y: [humidityData] });
+        document.getElementById('humidity-value').innerHTML = humidityData[humidityData.length-1].toFixed(1) + '<span class="unit">%</span>';
+      }
+      if (visibleSeries.pressure) {
+        Plotly.update('pressure-chart', { x: [timestamps], y: [pressureData] });
+        document.getElementById('pressure-value').innerHTML = pressureData[pressureData.length-1].toFixed(1) + '<span class="unit">hPa</span>';
+      }
+      
+      // Update stats
+      document.getElementById('data-points').textContent = timestamps.length;
+    }
+    
+    function updateUptime() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const secs = (elapsed % 60).toString().padStart(2, '0');
+      document.getElementById('uptime').textContent = `${mins}:${secs}`;
+    }
+    
+    function setTimeRange(seconds) {
+      maxPoints = seconds;
+      document.querySelectorAll('.chart-controls button').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+    
+    function resetZoom() {
+      Plotly.relayout('main-chart', {
+        'xaxis.autorange': true,
+        'yaxis.autorange': true
+      });
+    }
+    
+    function toggleSeries(name) {
+      visibleSeries[name] = !visibleSeries[name];
+      document.getElementById('btn-' + name).classList.toggle('active');
+    }
+    
+    function toggleSmooth() {
+      smoothMode = !smoothMode;
+      document.getElementById('btn-smooth').classList.toggle('active');
+      document.getElementById('btn-smooth').textContent = smoothMode ? '开启' : '关闭';
+    }
+    
+    function toggleGrid() {
+      showGrid = !showGrid;
+      document.getElementById('btn-grid').classList.toggle('active');
+      document.getElementById('btn-grid').textContent = showGrid ? '开启' : '关闭';
+    }
+    
+    function toggleFill() {
+      showFill = !showFill;
+      document.getElementById('btn-fill').classList.toggle('active');
+      document.getElementById('btn-fill').textContent = showFill ? '开启' : '关闭';
+      
+      const fillOpt = showFill ? 'tozeroy' : 'none';
+      Plotly.restyle('main-chart', {
+        fill: [fillOpt, fillOpt, fillOpt]
+      });
+    }
+    
+    // Interval slider
+    document.getElementById('update-interval').addEventListener('input', function() {
+      document.getElementById('interval-label').textContent = (this.value / 1000).toFixed(1) + 's';
+    });
+    
+    // Base value sliders
+    document.getElementById('temp-base').addEventListener('input', function() {
+      document.getElementById('temp-base-label').textContent = this.value + '°C';
+    });
+    document.getElementById('humidity-base').addEventListener('input', function() {
+      document.getElementById('humidity-base-label').textContent = this.value + '%';
+    });
+    document.getElementById('pressure-base').addEventListener('input', function() {
+      document.getElementById('pressure-base-label').textContent = this.value + 'hPa';
+    });
+    
+    init();
+  </script>
+</body>
+</html>
