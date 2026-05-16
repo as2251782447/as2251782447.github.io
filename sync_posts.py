@@ -77,12 +77,12 @@ def write_posts_ts(posts):
         lines.append(f'    date: "{p["date"]}",')
         lines.append(f'    tags: {p["tags"]},')
         
-        # excerpt as template literal (handle quotes)
-        excerpt = p['excerpt'].replace('\\', '\\\\').replace('`', '\\`').replace('"', '\\"')
+        # excerpt as template literal (handle quotes and ${ interpolation)
+        excerpt = p['excerpt'].replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${').replace('"', '\\"')
         lines.append(f'    excerpt: `{excerpt}`,')
         
         # content as template literal
-        content = p['content'].replace('\\', '\\\\').replace('`', '\\`')
+        content = p['content'].replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${')
         content_lines = content.split('\n')
         content_str = '\n'.join(content_lines)
         lines.append(f'    content: `{content_str}`,')
