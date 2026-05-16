@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TensorFlow.js 图像分类 - 实时摄像头识别</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00d4ff, #7b2fff, #ff2d92);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    
+    .header p {
+      color: #888;
+      font-size: 0.95rem;
+    }
+    
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #444;
+    }
+    
+    .status-dot.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+    .status-dot.loading { background: #ffaa00; box-shadow: 0 0 8px #ffaa00; animation: pulse 1s infinite; }
+    .status-dot.error { background: #ff4444; box-shadow: 0 0 8px #ff4444; }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    
+    @media (max-width: 768px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    
+    .camera-section {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    
+    .section-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+    
+    .section-header .icon {
+      font-size: 1.1rem;
+    }
+    
+    #video-container {
+      position: relative;
+      background: #111;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+    
+    #canvas-output {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .camera-placeholder {
+      text-align: center;
+      color: #555;
+    }
+    
+    .camera-placeholder .big-icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+    
+    .overlay-info {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    
+    .fps-badge {
+      background: rgba(0,0,0,0.7);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #00ff88;
+      backdrop-filter: blur(4px);
+    }
+    
+    .conf-badge {
+      background: rgba(0,0,0,0.7);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #ffaa00;
+      backdrop-filter: blur(4px);
+    }
+    
+    .results-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .top-prediction {
+      background: linear-gradient(135deg, rgba(123,47,255,0.15), rgba(0,212,255,0.1));
+      border: 1px solid rgba(123,47,255,0.3);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+    }
+    
+    .top-label {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    
+    .top-class {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    
+    .top-confidence {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #00d4ff, #7b2fff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .confidence-bar-container {
+      margin-top: 12px;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .confidence-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #7b2fff, #00d4ff);
+      border-radius: 3px;
+      transition: width 0.15s ease-out;
+    }
+    
+    .predictions-list {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      flex: 1;
+    }
+    
+    .predictions-list .section-header {
+      background: rgba(255,255,255,0.02);
+    }
+    
+    .pred-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.2s;
+    }
+    
+    .pred-item:last-child { border-bottom: none; }
+    .pred-item:hover { background: rgba(255,255,255,0.03); }
+    
+    .pred-rank {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(255,255,255,0.08);
+      color: #888;
+    }
+    
+    .pred-rank.top { background: linear-gradient(135deg, #7b2fff, #00d4ff); color: #fff; }
+    
+    .pred-name {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+    
+    .pred-bar-wrap {
+      width: 80px;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    
+    .pred-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #7b2fff, #00d4ff);
+      border-radius: 2px;
+      transition: width 0.3s ease-out;
+    }
+    
+    .pred-conf {
+      width: 50px;
+      text-align: right;
+      font-size: 0.8rem;
+      color: #888;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #7b2fff, #00d4ff);
+      color: #fff;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(123,47,255,0.4);
+    }
+    
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .model-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    
+    .model-selector label {
+      font-size: 0.85rem;
+      color: #888;
+    }
+    
+    .model-selector select {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    
+    .model-selector select option {
+      background: #1a1a2e;
+    }
+    
+    .error-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.85);
+      color: #ff6b6b;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .error-screen .err-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .error-screen .err-msg { font-size: 0.9rem; margin-bottom: 16px; max-width: 300px; }
+    .error-screen button { padding: 8px 20px; cursor: pointer; border: none; border-radius: 8px; background: #ff6b6b; color: #fff; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🧠 TensorFlow.js 实时图像分类</h1>
+      <p>浏览器里跑 MobileNet — 摄像头实时识别物体</p>
+    </div>
+    
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot" id="model-dot"></span>
+        <span id="model-status">加载模型中...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot" id="cam-dot"></span>
+        <span id="cam-status">等待开启摄像头</span>
+      </div>
+      <div class="status-item">
+        <span>FPS: </span>
+        <span id="fps-display">--</span>
+      </div>
+    </div>
+    
+    <div class="main-grid">
+      <div class="camera-section">
+        <div class="section-header">
+          <span class="icon">📹</span>
+          <span>摄像头输入 + 实时分类覆盖</span>
+        </div>
+        <div id="video-container">
+          <video id="webcam" autoplay playsinline></video>
+          <canvas id="canvas-output"></canvas>
+          <div class="camera-placeholder" id="cam-placeholder">
+            <div class="big-icon">📷</div>
+            <p>点击下方按钮开启摄像头</p>
+          </div>
+          <div class="overlay-info" id="overlay-info" style="display:none;">
+            <span class="fps-badge" id="fps-overlay">-- FPS</span>
+            <span class="conf-badge" id="conf-overlay">--%</span>
+          </div>
+          <div class="error-screen" id="error-screen" style="display:none;">
+            <div class="err-icon">⚠️</div>
+            <div class="err-msg" id="error-msg">无法访问摄像头</div>
+            <button onclick="initCamera()">重试</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="results-section">
+        <div class="top-prediction">
+          <div class="top-label">最高置信度预测</div>
+          <div class="top-class" id="top-class">等待中...</div>
+          <div class="top-confidence" id="top-confidence">--%</div>
+          <div class="confidence-bar-container">
+            <div class="confidence-bar" id="conf-bar" style="width:0%"></div>
+          </div>
+        </div>
+        
+        <div class="predictions-list">
+          <div class="section-header">
+            <span class="icon">📊</span>
+            <span>Top 5 预测结果</span>
+          </div>
+          <div id="predictions-container">
+            <div class="pred-item">
+              <div class="pred-rank">1</div>
+              <div class="pred-name">--</div>
+              <div class="pred-bar-wrap"><div class="pred-bar" style="width:0%"></div></div>
+              <div class="pred-conf">--%</div>
+            </div>
+            <div class="pred-item">
+              <div class="pred-rank">2</div>
+              <div class="pred-name">--</div>
+              <div class="pred-bar-wrap"><div class="pred-bar" style="width:0%"></div></div>
+              <div class="pred-conf">--%</div>
+            </div>
+            <div class="pred-item">
+              <div class="pred-rank">3</div>
+              <div class="pred-name">--</div>
+              <div class="pred-bar-wrap"><div class="pred-bar" style="width:0%"></div></div>
+              <div class="pred-conf">--%</div>
+            </div>
+            <div class="pred-item">
+              <div class="pred-rank">4</div>
+              <div class="pred-name">--</div>
+              <div class="pred-bar-wrap"><div class="pred-bar" style="width:0%"></div></div>
+              <div class="pred-conf">--%</div>
+            </div>
+            <div class="pred-item">
+              <div class="pred-rank">5</div>
+              <div class="pred-name">--</div>
+              <div class="pred-bar-wrap"><div class="pred-bar" style="width:0%"></div></div>
+              <div class="pred-conf">--%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="controls">
+      <button class="btn btn-primary" id="toggle-btn" onclick="toggleCamera()">
+        <span id="btn-icon">🎥</span>
+        <span id="btn-text">开启摄像头</span>
+      </button>
+      <button class="btn btn-secondary" id="flip-btn" onclick="flipCamera()" style="display:none;">
+        🔄 切换摄像头
+      </button>
+    </div>
+    
+    <div class="model-selector">
+      <label for="model-select">模型：</label>
+      <select id="model-select">
+        <option value="mobilenet">MobileNet v2 (默认)</option>
+        <option value="efficientnet">EfficientNet-Lite0</option>
+      </select>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+  <script>
+    let model = null;
+    let webcamStream = null;
+    let isRunning = false;
+    let animationId = null;
+    let facingMode = 'user';
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    let currentFps = 0;
+    
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas-output');
+    const ctx = canvas.getContext('2d');
+    const modelSelect = document.getElementById('model-select');
+    
+    async function loadModel(modelName) {
+      setModelStatus('loading', '加载模型中...');
+      try {
+        if (modelName === 'efficientnet') {
+          // EfficientNet-Lite0 via TF Hub
+          const hubUrl = 'https://tfhub.dev/tensorflow/efficientnet/lite0/classification/2';
+          model = await tf.loadGraphModel(hubUrl, { fromTFHub: true });
+          document.getElementById('model-status').textContent = 'EfficientNet-Lite0 已加载';
+        } else {
+          model = await mobilenet.load({ version: 2, alpha: 1.0 });
+          document.getElementById('model-status').textContent = 'MobileNet v2 已加载';
+        }
+        setModelStatus('active', '模型就绪');
+      } catch (e) {
+        console.error('Model load error:', e);
+        setModelStatus('error', '模型加载失败: ' + e.message);
+        // Fallback: try default mobilenet
+        if (modelName !== 'mobilenet') {
+          model = await mobilenet.load({ version: 2, alpha: 1.0 });
+          setModelStatus('active', 'MobileNet v2 (fallback) 已加载');
+        }
+      }
+    }
+    
+    async function initCamera() {
+      document.getElementById('error-screen').style.display = 'none';
+      setCamStatus('loading', '请求摄像头权限...');
+      try {
+        webcamStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+        video.srcObject = webcamStream;
+        await video.play();
+        
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        
+        document.getElementById('cam-placeholder').style.display = 'none';
+        video.style.display = 'block';
+        document.getElementById('flip-btn').style.display = 'flex';
+        setCamStatus('active', '摄像头已开启');
+        
+        if (!isRunning && model) {
+          isRunning = true;
+          classifyLoop();
+        }
+      } catch (e) {
+        console.error('Camera error:', e);
+        setCamStatus('error', '摄像头访问失败');
+        document.getElementById('error-screen').style.display = 'flex';
+        document.getElementById('error-msg').textContent = e.message || '无法访问摄像头，请检查权限设置';
+      }
+    }
+    
+    function stopCamera() {
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream = null;
+      }
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+      }
+      isRunning = false;
+      video.style.display = 'none';
+      document.getElementById('cam-placeholder').style.display = 'flex';
+      document.getElementById('flip-btn').style.display = 'none';
+      document.getElementById('overlay-info').style.display = 'none';
+      setCamStatus('loading', '摄像头已关闭');
+    }
+    
+    function toggleCamera() {
+      if (isRunning || webcamStream) {
+        stopCamera();
+        document.getElementById('btn-icon').textContent = '🎥';
+        document.getElementById('btn-text').textContent = '开启摄像头';
+      } else {
+        initCamera();
+        document.getElementById('btn-icon').textContent = '⏹';
+        document.getElementById('btn-text').textContent = '关闭摄像头';
+      }
+    }
+    
+    function flipCamera() {
+      facingMode = facingMode === 'user' ? 'environment' : 'user';
+      stopCamera();
+      initCamera();
+    }
+    
+    async function classifyLoop() {
+      if (!isRunning || !model) return;
+      
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      try {
+        let predictions;
+        if (model.classify) {
+          predictions = await model.classify(canvas);
+        } else {
+          // GraphModel (EfficientNet)
+          const tfCanvas = document.getElementById('canvas-output');
+          const tensor = tf.browser.fromPixelMap(tfCanvas)
+            .resizeBilinear([224, 224])
+            .toFloat()
+            .div(255.0)
+            .expandDims(0);
+          const output = model.predict(tensor);
+          const probs = await output.data();
+          tensor.dispose();
+          
+          // Create pseudo predictions
+          const topIdx = [...probs].map((p, i) => [p, i]).sort((a, b) => b[0] - a[0])[0][1];
+          predictions = [{ className: 'EfficientNet-Lite0 #' + topIdx, probability: probs[topIdx] }];
+        }
+        
+        updatePredictions(predictions);
+        
+        // FPS counter
+        frameCount++;
+        const now = performance.now();
+        if (now - lastFpsTime >= 1000) {
+          currentFps = frameCount;
+          frameCount = 0;
+          lastFpsTime = now;
+          document.getElementById('fps-display').textContent = currentFps;
+          document.getElementById('fps-overlay').textContent = currentFps + ' FPS';
+        }
+        
+        // Draw label on canvas
+        if (predictions && predictions.length > 0) {
+          const top = predictions[0];
+          const conf = (top.probability * 100).toFixed(1);
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          ctx.fillRect(8, 8, 220, 36);
+          ctx.fillStyle = '#00d4ff';
+          ctx.font = 'bold 16px monospace';
+          ctx.fillText(top.className.split(',')[0], 14, 28);
+          ctx.fillStyle = '#ffaa00';
+          ctx.fillText(conf + '%', 14, 42);
+          document.getElementById('overlay-info').style.display = 'flex';
+          document.getElementById('conf-overlay').textContent = conf + '%';
+        }
+        
+      } catch (e) {
+        console.error('Classification error:', e);
+      }
+      
+      animationId = requestAnimationFrame(classifyLoop);
+    }
+    
+    function updatePredictions(predictions) {
+      if (!predictions || predictions.length === 0) return;
+      
+      const top = predictions[0];
+      document.getElementById('top-class').textContent = top.className.split(',')[0];
+      const conf = (top.probability * 100).toFixed(1);
+      document.getElementById('top-confidence').textContent = conf + '%';
+      document.getElementById('conf-bar').style.width = conf + '%';
+      
+      const container = document.getElementById('predictions-container');
+      const items = container.querySelectorAll('.pred-item');
+      
+      predictions.slice(0, 5).forEach((pred, i) => {
+        const item = items[i];
+        if (!item) return;
+        item.querySelector('.pred-rank').textContent = i + 1;
+        item.querySelector('.pred-rank').className = 'pred-rank' + (i === 0 ? ' top' : '');
+        item.querySelector('.pred-name').textContent = pred.className.split(',')[0];
+        item.querySelector('.pred-bar').style.width = (pred.probability * 100) + '%';
+        item.querySelector('.pred-conf').textContent = (pred.probability * 100).toFixed(1) + '%';
+      });
+    }
+    
+    function setModelStatus(state, text) {
+      const dot = document.getElementById('model-dot');
+      dot.className = 'status-dot ' + (state === 'active' ? 'active' : state === 'loading' ? 'loading' : 'error');
+      document.getElementById('model-status').textContent = text;
+    }
+    
+    function setCamStatus(state, text) {
+      const dot = document.getElementById('cam-dot');
+      dot.className = 'status-dot ' + (state === 'active' ? 'active' : state === 'loading' ? 'loading' : state === 'error' ? 'error' : '');
+      document.getElementById('cam-status').textContent = text;
+    }
+    
+    modelSelect.addEventListener('change', async () => {
+      const wasRunning = isRunning;
+      if (wasRunning) stopCamera();
+      await loadModel(modelSelect.value);
+      if (wasRunning) initCamera();
+    });
+    
+    // Init
+    loadModel('mobilenet');
+  </script>
+</body>
+</html>
