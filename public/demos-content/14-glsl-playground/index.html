@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GLSL Shader Playground</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a25;--border:#2a2a3a;
+--text:#e0e0f0;--text2:#8888a8;--accent:#7c3aed;--accent2:#a855f7;
+--success:#22c55e;--error:#ef4444;--warn:#f59e0b;
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;border:none;transition:all 0.2s;font-family:inherit}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2);transform:translateY(-1px)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.status-badge{padding:6px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;display:flex;align-items:center;gap:6px}
+.status-compiling{background:#f59e0b20;color:#f59e0b}
+.status-success{background:#22c55e20;color:#22c55e}
+.status-error{background:#ef444420;color:#ef4444}
+.status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+main{display:flex;flex:1;overflow:hidden}
+.editor-panel{flex:1;min-width:300px;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+.panel-header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.panel-header span{font-size:0.8rem;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.toolbar{display:flex;gap:6px}
+.toolbar button{padding:4px 8px;font-size:0.75rem;background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:4px;cursor:pointer;font-family:inherit}
+.toolbar button:hover{color:var(--text);border-color:var(--accent)}
+textarea#code{width:100%;flex:1;background:var(--bg);color:#e0e0f0;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;padding:16px;border:none;resize:none;outline:none}
+textarea#code::selection{background:var(--accent)50}
+.preview-panel{flex:1.5;min-width:400px;display:flex;flex-direction:column;background:var(--bg)}
+.preview-toolbar{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.preview-toolbar .label{font-size:0.8rem;color:var(--text2);font-weight:600;text-transform:uppercase}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.preset-btn{padding:5px 12px;font-size:0.75rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:16px;cursor:pointer;font-family:inherit;transition:all 0.2s}
+.preset-btn:hover,.preset-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+canvas#glCanvas{flex:1;display:block;background:#000}
+.error-panel{max-height:200px;overflow-y:auto;background:#ef444410;border-top:1px solid var(--error);padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--error)}
+.error-panel:empty{display:none}
+.universal-ui{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:100}
+.ui-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;width:280px;backdrop-filter:blur(10px)}
+.ui-panel h3{font-size:0.9rem;margin-bottom:12px;color:var(--accent2)}
+.slider-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.slider-row label{font-size:0.8rem;min-width:80px;color:var(--text2)}
+.slider-row input[type="range"]{flex:1;accent-color:var(--accent)}
+.slider-row .val{font-size:0.75rem;font-family:'JetBrains Mono',monospace;color:var(--text);min-width:40px;text-align:right}
+.info-bar{position:fixed;bottom:20px;left:20px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:0.75rem;color:var(--text2);display:flex;gap:16px}
+.info-bar span{font-family:'JetBrains Mono',monospace}
+@media(max-width:900px){main{flex-direction:column}
+.editor-panel{min-width:unset;border-right:none;border-bottom:1px solid var(--border);max-height:50vh}
+.preview-panel{min-width:unset}
+canvas#glCanvas{min-height:50vh}}
+</style>
+</head>
+<body>
+<header>
+<h1>✨ GLSL Shader Playground</h1>
+<div class="header-actions">
+<span id="statusBadge" class="status-badge status-success"><span class="status-dot"></span>编译成功</span>
+<button class="btn btn-primary" onclick="compileShader()">▶ 编译运行</button>
+<button class="btn btn-secondary" onclick="resetShader()">↺ 重置</button>
+<button class="btn btn-secondary" onclick="toggleUI()">⚙ 交互</button>
+</div>
+</header>
+<main>
+<div class="editor-panel">
+<div class="panel-header">
+<span>Fragment Shader</span>
+<div class="toolbar">
+<button onclick="formatCode()">格式化</button>
+<button onclick="copyCode()">复制</button>
+</div>
+</div>
+<textarea id="code" spellcheck="false"></textarea>
+</div>
+<div class="preview-panel">
+<div class="preview-toolbar">
+<span class="label">预设:</span>
+<div class="presets">
+<button class="preset-btn active" onclick="loadPreset('plasma')">等离子</button>
+<button class="preset-btn" onclick="loadPreset('warp')">时空扭曲</button>
+<button class="preset-btn" onclick="loadPreset('fractal')">分形</button>
+<button class="preset-btn" onclick="loadPreset('waves')">水波</button>
+<button class="preset-btn" onclick="loadPreset('particles')">粒子漩涡</button>
+</div>
+</div>
+<canvas id="glCanvas"></canvas>
+<div id="errorPanel" class="error-panel"></div>
+</div>
+</main>
+<div class="universal-ui" id="universalUI" style="display:none">
+<div class="ui-panel">
+<h3>🎮 实时参数</h3>
+<div class="slider-row"><label>颜色相变</label><input type="range" min="0" max="10" step="0.1" value="3" id="speed" oninput="updateUniforms()"><span class="val" id="speedVal">3.0</span></div>
+<div class="slider-row"><label>复杂度</label><input type="range" min="1" max="8" step="0.5" value="4" id="complexity" oninput="updateUniforms()"><span class="val" id="complexityVal">4.0</span></div>
+<div class="slider-row"><label>缩放</label><input type="range" min="0.5" max="5" step="0.1" value="1.5" id="scale" oninput="updateUniforms()"><span class="val" id="scaleVal">1.5</span></div>
+<div class="slider-row"><label>扭曲强度</label><input type="range" min="0" max="2" step="0.05" value="0.5" id="distort" oninput="updateUniforms()"><span class="val" id="distortVal">0.50</span></div>
+</div>
+</div>
+<div class="info-bar" id="infoBar"><span id="fps">FPS: 60</span><span id="time">Time: 0.0s</span></div>
+<script>
+const defaultShader=`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    uv *= u_scale;
+    
+    float t = u_time * u_speed * 0.3;
+    vec2 p = uv;
+    
+    // 动态扭曲
+    p += vec2(sin(p.y * u_complexity + t) * u_distort, cos(p.x * u_complexity + t) * u_distort);
+    
+    float v = 0.0;
+    vec2 c = p;
+    
+    for (float i = 0.0; i < 6.0; i++) {
+        v += sin(c.x + t) * cos(c.y + t * 0.7);
+        c = c * 2.0 + vec2(sin(t + i) * 0.3);
+        v += sin(length(c) + t) * 0.5;
+    }
+    
+    v = sin(v * 2.0 + t);
+    vec3 col = 0.5 + 0.5 * cos(6.2831 * v + vec3(0, 2, 4));
+    
+    // 鼠标交互光效
+    float m = smoothstep(0.3, 0.0, length(uv - (u_mouse - 0.5)));
+    col += vec3(m * 0.5, m * 0.3, m);
+    
+    gl_FragColor = vec4(col, 1.0);
+}`;
+
+const presets={
+plasma:`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main(){
+vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/min(u_resolution.x,u_resolution.y);
+uv*=u_scale;
+float t=u_time*u_speed*0.5;
+float v=sin(uv.x*u_complexity+t)+sin(uv.y*u_complexity+t*1.3)+sin(uv.x*2.+uv.y*2.+t)+cos(sqrt(length(uv)*u_complexity)+t);
+v=sin(v);
+vec3 col=vec3(sin(v*3.14),sin(v*3.14+2.1),sin(v*3.14+4.2))*0.5+0.5;
+float m=1.-smoothstep(0.,0.4,length(uv-(u_mouse-0.5)));
+col+=vec3(m*m,m*0.7,m)*0.4;
+gl_FragColor=vec4(col,1.);
+}`,
+warp:`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main(){
+vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/min(u_resolution.x,u_resolution.y);
+uv*=u_scale;
+float t=u_time*u_speed*0.4;
+float r=length(uv);
+float a=atan(uv.y,uv.x);
+vec2 p=uv+vec2(cos(a*u_complexity+t),sin(a*u_complexity+t*1.2))*u_distort;
+float v=sin(p.x*8.+t)*sin(p.y*8.+t*0.8);
+v+=sin(length(p+u_distort)*10.-t*2.);
+v=sin(v*2.);
+vec3 col=0.5+0.5*cos(6.28*v+vec3(0,1.5,3));
+gl_FragColor=vec4(col,1.);
+}`,
+fractal:`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main(){
+vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/min(u_resolution.x,u_resolution.y);
+uv*=u_scale;
+float t=u_time*u_speed*0.3;
+vec2 z=uv;
+vec2 c=vec2(0.4+sin(t)*0.2,0.5+cos(t*0.7)*0.2);
+float i=0.;
+for(int n=0;n<60;n++){
+z=z*mat2(z.x,-z.y,z.yx)+c;
+if(length(z)>4.){i=float(n);break;}
+}
+i/=60.;
+vec3 col=0.5+0.5*cos(6.28*i+vec3(0,2,4));
+gl_FragColor=vec4(col*col,1.);
+}`,
+waves:`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main(){
+vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/min(u_resolution.x,u_resolution.y);
+uv*=u_scale;
+float t=u_time*u_speed*0.6;
+float w=sin(uv.y*u_complexity*2.+sin(uv.x*3.+t)*2.+t)*0.5+0.5;
+float v=sin(uv.x*u_complexity*4.+w*3.14+t)*0.5+0.5;
+vec3 col=vec3(v,smoothstep(0.3,0.7,v),smoothstep(0.6,0.4,v));
+float d=length(uv-(u_mouse-0.5));
+col+=vec3(0.2,0.5,0.8)*exp(-d*5.)*0.5;
+gl_FragColor=vec4(col,1.);
+}`,
+particles:`precision mediump float;
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_speed;
+uniform float u_complexity;
+uniform float u_scale;
+uniform float u_distort;
+
+void main(){
+vec2 uv=(gl_FragCoord.xy-0.5*u_resolution.xy)/min(u_resolution.x,u_resolution.y);
+uv*=u_scale;
+float t=u_time*u_speed*0.4;
+float v=0.;
+for(float i=0.;i<40.;i++){
+vec2 p=vec2(sin(i*0.8+t)*2.,cos(i*0.6+t*1.1)*2.);
+float d=length(uv-p);
+v+=smoothstep(0.1,0.,d)*smoothstep(0.5,0.,d);
+}
+v=smoothstep(0.,1.,v);
+vec3 col=vec3(sin(v*6.28)*0.5+0.5,sin(v*6.28+2.)*0.5+0.5,sin(v*6.28+4.)*0.5+0.5);
+gl_FragColor=vec4(col*v,1.);
+}`
+};
+
+let gl,program,canvas,codeEditor,mouseX=0.5,mouseY=0.5,startTime=Date.now();
+let uniforms={u_speed:3,u_complexity:4,u_scale:1.5,u_distort:0.5};
+let fps=60,frameCount=0,lastFpsTime=Date.now();
+
+function initGL(){
+canvas=document.getElementById('glCanvas');
+gl=canvas.getContext('webgl')||canvas.getContext('experimental-webgl');
+if(!gl){showError('WebGL不可用');return false;}
+return true;
+}
+
+function createShader(type,source){
+const s=gl.createShader(type);
+gl.shaderSource(s,source);
+gl.compileShader(s);
+if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){showError(gl.getShaderInfoLog(s));gl.deleteShader(s);return null;}
+return s;
+}
+
+function createProgram(vs,fs){
+const p=gl.createProgram();
+gl.attachShader(p,vs);
+gl.attachShader(p,fs);
+gl.linkProgram(p);
+if(!gl.getProgramParameter(p,gl.LINK_STATUS)){showError(gl.getProgramInfoLog(p));gl.deleteProgram(p);return null;}
+return p;
+}
+
+const vertSrc=`attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0.,1.);}`;
+
+function compileShader(){
+if(!gl)return;
+document.getElementById('errorPanel').innerHTML='';
+document.getElementById('statusBadge').className='status-badge status-compiling';
+document.getElementById('statusBadge').innerHTML='<span class="status-dot"></span>编译中...';
+
+const fsSrc=document.getElementById('code').value;
+const vs=createShader(gl.VERTEX_SHADER,vertSrc);
+const fs=createShader(gl.FRAGMENT_SHADER,fsSrc);
+if(!vs||!fs){document.getElementById('statusBadge').className='status-badge status-error';
+document.getElementById('statusBadge').innerHTML='<span>✕ 编译失败</span>';return;}
+if(program)gl.deleteProgram(program);
+program=createProgram(vs,fs);
+if(!program){document.getElementById('statusBadge').className='status-badge status-error';
+document.getElementById('statusBadge').innerHTML='<span>✕ 链接失败</span>';return;}
+gl.useProgram(program);
+
+const buf=gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const loc=gl.getAttribLocation(program,'a_pos');
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+document.getElementById('statusBadge').className='status-badge status-success';
+document.getElementById('statusBadge').innerHTML='<span class="status-dot"></span>编译成功';
+}
+
+function render(){
+if(!gl||!program)return;
+const w=canvas.width,h=canvas.height;
+gl.viewport(0,0,w,h);
+const t=(Date.now()-startTime)/1000;
+gl.uniform1f(gl.getUniformLocation(program,'u_time'),t);
+gl.uniform2f(gl.getUniformLocation(program,'u_resolution'),w,h);
+gl.uniform2f(gl.getUniformLocation(program,'u_mouse'),mouseX,mouseY);
+if(gl.getUniformLocation(program,'u_speed')!==null)gl.uniform1f(gl.getUniformLocation(program,'u_speed'),uniforms.u_speed);
+if(gl.getUniformLocation(program,'u_complexity')!==null)gl.uniform1f(gl.getUniformLocation(program,'u_complexity'),uniforms.u_complexity);
+if(gl.getUniformLocation(program,'u_scale')!==null)gl.uniform1f(gl.getUniformLocation(program,'u_scale'),uniforms.u_scale);
+if(gl.getUniformLocation(program,'u_distort')!==null)gl.uniform1f(gl.getUniformLocation(program,'u_distort'),uniforms.u_distort);
+gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+frameCount++;
+const now=Date.now();
+if(now-lastFpsTime>=1000){fps=frameCount;frameCount=0;lastFpsTime=now;
+document.getElementById('fps').textContent='FPS: '+fps;
+document.getElementById('time').textContent='Time: '+(t.toFixed(1))+'s';}
+requestAnimationFrame(render);
+}
+
+function resize(){
+if(!canvas)return;
+const r=canvas.parentElement;
+canvas.width=r.clientWidth;
+canvas.height=r.clientHeight;
+}
+window.addEventListener('resize',resize);
+
+function showError(msg){
+document.getElementById('errorPanel').innerHTML='⚠ '+msg.replace(/\n/g,'<br>');
+}
+
+function loadPreset(name){
+const el=document.querySelectorAll('.preset-btn');
+el.forEach(e=>e.classList.remove('active'));
+event.target.classList.add('active');
+document.getElementById('code').value=presets[name];
+compileShader();
+}
+
+function resetShader(){
+document.getElementById('code').value=defaultShader;
+uniforms={u_speed:3,u_complexity:4,u_scale:1.5,u_distort:0.5};
+['speed','complexity','scale','distort'].forEach(id=>{document.getElementById(id).value=uniforms[id];document.getElementById(id+'Val').textContent=uniforms[id].toFixed(id==='complexity'||id==='distort'?2:1);});
+document.querySelectorAll('.preset-btn').forEach(e=>e.classList.remove('active'));
+compileShader();
+}
+
+function updateUniforms(){
+uniforms.u_speed=parseFloat(document.getElementById('speed').value);
+uniforms.u_complexity=parseFloat(document.getElementById('complexity').value);
+uniforms.u_scale=parseFloat(document.getElementById('scale').value);
+uniforms.u_distort=parseFloat(document.getElementById('distort').value);
+['speed','complexity','scale','distort'].forEach(id=>document.getElementById(id+'Val').textContent=uniforms[id].toFixed(id==='complexity'||id==='distort'?2:1));
+}
+
+function toggleUI(){
+const ui=document.getElementById('universalUI');
+ui.style.display=ui.style.display==='none'?'flex':'none';
+}
+
+function formatCode(){
+const c=document.getElementById('code');
+c.value=c.value.replace(/\s+/g,' ').replace(/\s*([{};,=+\-*/<>])\s*/g,'$1').replace(/;\s*;/g,';').trim();
+}
+
+function copyCode(){
+navigator.clipboard.writeText(document.getElementById('code').value).then(()=>{
+const btn=document.querySelector('.toolbar button:nth-child(2)');
+btn.textContent='已复制!';setTimeout(()=>btn.textContent='复制',1500);
+});
+}
+
+canvas=document.getElementById('glCanvas');
+canvas.addEventListener('mousemove',e=>{
+const r=canvas.getBoundingClientRect();
+mouseX=e.clientX-r.left;
+mouseY=1-(e.clientY-r.top);
+});
+if(initGL()){
+document.getElementById('code').value=defaultShader;
+resize();
+compileShader();
+render();
+}
+</script>
+</body>
+</html>
