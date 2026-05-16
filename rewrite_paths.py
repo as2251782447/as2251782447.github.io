@@ -16,8 +16,9 @@ for root, dirs, files in os.walk(out_dir):
         path = os.path.join(root, fname)
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
-        new_content = content.replace('/_next/static/', '/static/chunks/')
-        new_content = new_content.replace('/_next/static/chunks/', '/static/chunks/')
+        # More specific pattern first (otherwise _next/static/chunks contains _next/static and gets double-replaced)
+        new_content = content.replace('/_next/static/chunks/', '/static/chunks/')
+        new_content = new_content.replace('/_next/static/', '/static/chunks/')
         if new_content != content:
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(new_content)
